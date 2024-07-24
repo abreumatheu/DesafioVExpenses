@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desafio VExpenses</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .header img {
+            width: 150px;
+        }
+        h1 {
+            color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #0056b3;
+            color: #fff;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        .filter-btns, .state-select {
+            margin-bottom: 20px;
+        }
+        .filter-btns button, .state-select button {
+            background-color: #0056b3;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        .filter-btns button:hover, .state-select button:hover {
+            background-color: #004494;
+        }
+        .state-select select {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .download-btn {
+            background-color: #0056b3;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            display: block;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .download-btn:hover {
+            background-color: #004494;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="logo.png" alt="Logotipo">
+            <h1>Desafio VExpenses - Tempo Médio de Envio de Cartões</h1>
+        </div>
+        <div class="filter-btns">
+            <button onclick="filterData('greater')">SLA Real > SLA Previsto</button>
+            <button onclick="filterData('less')">SLA Real < SLA Previsto</button>
+            <button onclick="filterData('equal')">SLA Real = SLA Previsto</button>
+            <button onclick="filterData('all')">Mostrar Todos</button>
+            <button onclick="filterData('extraviado')">Cartões Extraviados</button>
+        </div>
+        <div class="state-select">
+            <label for="state">Selecione um Estado:</label>
+            <select id="state" onchange="calculateAverageByState()">
+                <option value="">--Selecione--</option>
+                <!-- Estados serão inseridos aqui -->
+            </select>
+            <span id="average-time-state"></span>
+        </div>
+        <table id="data-table">
+            <thead>
+                <tr>
+                    <th>ID do Pedido</th>
+                    <th>Data de Coleta</th>
+                    <th>Cidade</th>
+                    <th>Estado</th>
+                    <th>Data de Entrega</th>
+                    <th>SLA Real (dias)</th>
+                    <th>SLA Previsto (dias)</th>
+                    <th>Diferença (dias)</th>
+                </tr>
+            </thead>
+            <tbody id="data-body">
+                <!-- Linhas de dados serão inseridas aqui -->
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="5"><strong>Média de Tempo de Envio</strong></td>
+                    <td id="avg-time"></td>
+                    <td colspan="2"></td>
+                </tr>
+            </tfoot>
+        </table>
+        <button class="download-btn" onclick="downloadExcel()">Baixar Relatório em Excel</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+    <script>
+        // Dados da planilha processados
+        const data = [
+            { id: 'VEX_001', coleta: '2022-08-01', cidade: 'Pato Branco', estado: 'PR', entrega: '2022-08-03', slaPrevisto: 7 },
+            { id: 'VEX_002', coleta: '2022-08-01', cidade: 'Jaboticabal', estado: 'SP', entrega: '2022-08-03', slaPrevisto: 6 },
+            { id: 'VEX_003', coleta: '2022-08-01', cidade: 'Rio de Janeiro', estado: 'RJ', entrega: '2022-08-03', slaPrevisto: 6 },
+            { id: 'VEX_004', coleta: '2022-08-01', cidade: 'Salvador', estado: 'BA', entrega: '2022-08-04', slaPrevisto: 5 },
+            { id: 'VEX_005', coleta: '2022-08-01', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-08', slaPrevisto: 7 },
+            { id: 'VEX_006', coleta: '2022-08-01', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-03', slaPrevisto: 7 },
+            { id: 'VEX_007', coleta: '2022-08-01', cidade: 'Belo Horizonte', estado: 'MG', entrega: '2022-08-03', slaPrevisto: 6 },
+  { id: 'VEX_008', coleta: '2022-08-02', cidade: 'Ponta Grossa', estado: 'PR', entrega: '2022-08-04', slaPrevisto: 6 },
+  { id: 'VEX_009', coleta: '2022-08-02', cidade: 'Eunápolis', estado: 'BA', entrega: '2022-08-03', slaPrevisto: 5 },
+  { id: 'VEX_010', coleta: '2022-08-02', cidade: 'Rio de Janeiro', estado: 'RJ', entrega: '2022-08-22', slaPrevisto: 5 },
+  { id: 'VEX_011', coleta: '2022-08-03', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-04', slaPrevisto: 6 },
+  { id: 'VEX_012', coleta: '2022-08-03', cidade: 'Sertãozinho', estado: 'SP', entrega: '2022-08-05', slaPrevisto: 7 },
+  { id: 'VEX_013', coleta: '2022-08-03', cidade: 'Chapecó', estado: 'SC', entrega: '2022-08-05', slaPrevisto: 7 },
+  { id: 'VEX_014', coleta: '2022-08-03', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-04', slaPrevisto: 6 },
+  { id: 'VEX_015', coleta: '2022-08-03', cidade: 'Irecê', estado: 'BA', entrega: '2022-08-04', slaPrevisto: 5 },
+  { id: 'VEX_016', coleta: '2022-08-04', cidade: 'Jundiaí', estado: 'SP', entrega: '2022-08-05', slaPrevisto: 6 },
+  { id: 'VEX_017', coleta: '2022-08-04', cidade: 'Santa Bárbara D\'Oeste', estado: 'SP', entrega: '2022-08-08', slaPrevisto: 4 },
+  { id: 'VEX_018', coleta: '2022-08-04', cidade: 'Nova Alvorada', estado: 'RS', entrega: '2022-08-08', slaPrevisto: 5 },
+  { id: 'VEX_019', coleta: '2022-08-04', cidade: 'São Bernardo do Campo', estado: 'SP', entrega: '2022-08-11', slaPrevisto: 6 },
+  { id: 'VEX_020', coleta: '2022-08-04', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-11', slaPrevisto: 6 },
+  { id: 'VEX_021', coleta: '2022-08-04', cidade: 'Guarulhos', estado: 'SP', entrega: '2022-08-11', slaPrevisto: 5 },
+  { id: 'VEX_022', coleta: '2022-08-04', cidade: 'São José dos Pinhais', estado: 'PR', entrega: '2022-08-11', slaPrevisto: 5 },
+  { id: 'VEX_023', coleta: '2022-08-04', cidade: 'Curitiba', estado: 'PR', entrega: '2022-08-09', slaPrevisto: 4 },
+  { id: 'VEX_024', coleta: '2022-08-04', cidade: 'Limeira', estado: 'SP', entrega: '2022-08-10', slaPrevisto: 4 },
+  { id: 'VEX_025', coleta: '2022-08-04', cidade: 'Campo Grande', estado: 'MS', entrega: '2022-08-09', slaPrevisto: 4 },
+  { id: 'VEX_026', coleta: '2022-08-04', cidade: 'Salvador', estado: 'BA', entrega: '2022-08-10', slaPrevisto: 5 },
+  { id: 'VEX_027', coleta: '2022-08-04', cidade: 'Caxias do Sul', estado: 'RS', entrega: '2022-08-11', slaPrevisto: 5 },
+  { id: 'VEX_028', coleta: '2022-08-05', cidade: 'Palhoça', estado: 'SC', entrega: '2022-08-10', slaPrevisto: 5 },
+  { id: 'VEX_029', coleta: '2022-08-05', cidade: 'Erechim', estado: 'RS', entrega: '2022-08-11', slaPrevisto: 5 },
+  { id: 'VEX_030', coleta: '2022-08-05', cidade: 'Niterói', estado: 'RJ', entrega: '2022-08-09', slaPrevisto: 4 },
+  { id: 'VEX_031', coleta: '2022-08-05', cidade: 'Cambé', estado: 'PR', entrega: '2022-08-09', slaPrevisto: 4 },
+  { id: 'VEX_032', coleta: '2022-08-08', cidade: 'Rio Branco', estado: 'AC', entrega: '2022-08-10', slaPrevisto: 7 },
+  { id: 'VEX_033', coleta: '2022-08-08', cidade: 'Franca', estado: 'SP', entrega: '2022-08-11', slaPrevisto: 4 },
+  { id: 'VEX_034', coleta: '2022-08-08', cidade: 'Curitiba', estado: 'PR', entrega: '2022-08-09', slaPrevisto: 4 },
+  { id: 'VEX_035', coleta: '2022-08-08', cidade: 'Limeira', estado: 'SP', entrega: '2022-08-11', slaPrevisto: 4 },
+  { id: 'VEX_036', coleta: '2022-08-08', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-12', slaPrevisto: 4 },
+  { id: 'VEX_037', coleta: '2022-08-08', cidade: 'Valparaíso de Goiás', estado: 'GO', entrega: '2022-08-11', slaPrevisto: 5 },
+  { id: 'VEX_038', coleta: '2022-08-08', cidade: 'Unaí', estado: 'MG', entrega: '2022-08-11', slaPrevisto: 5 },
+  { id: 'VEX_039', coleta: '2022-08-08', cidade: 'Contagem', estado: 'MG', entrega: '2022-08-11', slaPrevisto: 5 },
+  { id: 'VEX_040', coleta: '2022-08-08', cidade: 'Cotia', estado: 'SP', entrega: '2022-08-10', slaPrevisto: 4 },
+  { id: 'VEX_041', coleta: '2022-08-10', cidade: 'Caxias do Sul', estado: 'RS', entrega: '2022-08-11', slaPrevisto: 5 },
+  { id: 'VEX_042', coleta: '2022-08-10', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-12', slaPrevisto: 4 },
+  { id: 'VEX_043', coleta: '2022-08-10', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-11', slaPrevisto: 4 },
+  { id: 'VEX_044', coleta: '2022-08-10', cidade: 'Nova Esperança', estado: 'PR', entrega: '2022-08-16', slaPrevisto: 4 },
+  { id: 'VEX_045', coleta: '2022-08-10', cidade: 'São José do Rio Preto', estado: 'SP', entrega: '2022-08-17', slaPrevisto: 4 },
+  { id: 'VEX_046', coleta: '2022-08-10', cidade: 'Indaiatuba', estado: 'SP', entrega: '2022-08-12', slaPrevisto: 4 },
+  { id: 'VEX_047', coleta: '2022-08-11', cidade: 'Palhoça', estado: 'SC', entrega: '2022-08-12', slaPrevisto: 5 },
+  { id: 'VEX_048', coleta: '2022-08-11', cidade: 'Recife', estado: 'PE', entrega: '2022-08-22', slaPrevisto: 6 },
+  { id: 'VEX_049', coleta: '2022-08-11', cidade: 'Cuiabá', estado: 'MT', entrega: '2022-08-18', slaPrevisto: 6 },
+  { id: 'VEX_050', coleta: '2022-08-11', cidade: 'Diadema', estado: 'SP', entrega: '2022-08-19', slaPrevisto: 4 },
+  { id: 'VEX_051', coleta: '2022-08-11', cidade: 'Florianópolis', estado: 'SC', entrega: '2022-08-15', slaPrevisto: 5 },
+  { id: 'VEX_052', coleta: '2022-08-11', cidade: 'Rio de Janeiro', estado: 'RJ', entrega: '2022-08-15', slaPrevisto: 4 },
+  { id: 'VEX_053', coleta: '2022-08-11', cidade: 'Curitiba', estado: 'PR', entrega: '2022-08-15', slaPrevisto: 4 },
+  { id: 'VEX_054', coleta: '2022-08-11', cidade: 'Sertãozinho', estado: 'SP', entrega: '2022-08-12', slaPrevisto: 4 },
+  { id: 'VEX_055', coleta: '2022-08-12', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-15', slaPrevisto: 4 },
+  { id: 'VEX_056', coleta: '2022-08-12', cidade: 'Jundiaí', estado: 'SP', entrega: '2022-08-15', slaPrevisto: 4 },
+  { id: 'VEX_057', coleta: '2022-08-12', cidade: 'Blumenau', estado: 'SC', entrega: '2022-08-15', slaPrevisto: 5 },
+  { id: 'VEX_058', coleta: '2022-08-12', cidade: 'Cachoeirinha', estado: 'RS', entrega: '2022-08-16', slaPrevisto: 5 },
+  { id: 'VEX_059', coleta: '2022-08-12', cidade: 'Campinas', estado: 'SP', entrega: '2022-08-15', slaPrevisto: 4 },
+  { id: 'VEX_060', coleta: '2022-08-12', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-19', slaPrevisto: 4 },
+  { id: 'VEX_061', coleta: '2022-08-12', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-15', slaPrevisto: 4 },
+  { id: 'VEX_062', coleta: '2022-08-12', cidade: 'Jundiaí', estado: 'SP', entrega: '2022-08-15', slaPrevisto: 4 },
+  { id: 'VEX_063', coleta: '2022-08-12', cidade: 'Rio de Janeiro', estado: 'RJ', entrega: '2022-08-15', slaPrevisto: 4 },
+  { id: 'VEX_064', coleta: '2022-08-12', cidade: 'Campo Grande', estado: 'MS', entrega: '2022-08-16', slaPrevisto: 6 },
+  { id: 'VEX_065', coleta: '2022-08-16', cidade: 'Vitória da Conquista', estado: 'BA', entrega: '2022-08-19', slaPrevisto: 5 },
+  { id: 'VEX_066', coleta: '2022-08-16', cidade: 'Paraíso do Tocantins', estado: 'TO', entrega: '2022-08-19', slaPrevisto: 6 },
+  { id: 'VEX_067', coleta: '2022-08-16', cidade: 'Curitiba', estado: 'PR', entrega: '2022-08-19', slaPrevisto: 4 },
+  { id: 'VEX_068', coleta: '2022-08-17', cidade: 'Campinas', estado: 'SP', entrega: '2022-08-23', slaPrevisto: 4 },
+  { id: 'VEX_069', coleta: '2022-08-17', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-22', slaPrevisto: 4 },
+  { id: 'VEX_070', coleta: '2022-08-17', cidade: 'Betim', estado: 'MG', entrega: '2022-08-22', slaPrevisto: 5 },
+  { id: 'VEX_071', coleta: '2022-08-17', cidade: 'Florianópolis', estado: 'SC', entrega: '2022-08-18', slaPrevisto: 5 },
+  { id: 'VEX_072', coleta: '2022-08-17', cidade: 'Sinop', estado: 'MT', entrega: '2022-08-19', slaPrevisto: 6 },
+  { id: 'VEX_073', coleta: '2022-08-17', cidade: 'Nova Iguaçu', estado: 'RJ', entrega: '2022-08-19', slaPrevisto: 4 },
+  { id: 'VEX_074', coleta: '2022-08-17', cidade: 'Itabuna', estado: 'BA', entrega: '2022-08-19', slaPrevisto: 5 },
+  { id: 'VEX_075', coleta: '2022-08-17', cidade: 'Nova Veneza', estado: 'SC', entrega: '2022-08-22', slaPrevisto: 5 },
+  { id: 'VEX_076', coleta: '2022-08-19', cidade: 'Vespasiano', estado: 'MG', entrega: '2022-08-22', slaPrevisto: 5 },
+  { id: 'VEX_077', coleta: '2022-08-19', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-29', slaPrevisto: 4 },
+  { id: 'VEX_078', coleta: '2022-08-19', cidade: 'Serra', estado: 'ES', entrega: '2022-08-22', slaPrevisto: 5 },
+  { id: 'VEX_079', coleta: '2022-08-19', cidade: 'Natal', estado: 'RN', entrega: '2022-08-24', slaPrevisto: 6 },
+  { id: 'VEX_080', coleta: '2022-08-19', cidade: 'Curitiba', estado: 'PR', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_081', coleta: '2022-08-19', cidade: 'Americana', estado: 'SP', entrega: '2022-08-24', slaPrevisto: 4 },
+  { id: 'VEX_082', coleta: '2022-08-19', cidade: 'Rio de Janeiro', estado: 'RJ', entrega: '2022-08-31', slaPrevisto: 4 },
+  { id: 'VEX_083', coleta: '2022-08-19', cidade: 'Guarulhos', estado: 'SP', entrega: 'Extraviado', slaPrevisto: 4 },
+  { id: 'VEX_084', coleta: '2022-08-19', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-22', slaPrevisto: 4 },
+  { id: 'VEX_085', coleta: '2022-08-19', cidade: 'Jataí', estado: 'GO', entrega: '2022-08-23', slaPrevisto: 5 },
+  { id: 'VEX_086', coleta: '2022-08-19', cidade: 'São Vicente', estado: 'SP', entrega: '2022-08-22', slaPrevisto: 4 },
+  { id: 'VEX_087', coleta: '2022-08-19', cidade: 'Itapira', estado: 'SP', entrega: '2022-08-24', slaPrevisto: 4 },
+  { id: 'VEX_088', coleta: '2022-08-19', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-22', slaPrevisto: 4 },
+  { id: 'VEX_089', coleta: '2022-08-19', cidade: 'Valparaíso de Goiás', estado: 'GO', entrega: '2022-08-25', slaPrevisto: 5 },
+  { id: 'VEX_090', coleta: '2022-08-19', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-24', slaPrevisto: 4 },
+  { id: 'VEX_091', coleta: '2022-08-23', cidade: 'Lucas do Rio Verde', estado: 'MT', entrega: '2022-08-26', slaPrevisto: 6 },
+  { id: 'VEX_092', coleta: '2022-08-23', cidade: 'Fortaleza', estado: 'CE', entrega: '2022-08-17', slaPrevisto: 5 },
+  { id: 'VEX_093', coleta: '2022-08-23', cidade: 'São Mateus', estado: 'ES', entrega: '2022-08-25', slaPrevisto: 5 },
+  { id: 'VEX_094', coleta: '2022-08-23', cidade: 'Aparecida de Goiânia', estado: 'GO', entrega: '2022-08-31', slaPrevisto: 5 },
+  { id: 'VEX_095', coleta: '2022-08-23', cidade: 'Porto Alegre', estado: 'RS', entrega: '2022-08-30', slaPrevisto: 5 },
+  { id: 'VEX_096', coleta: '2022-08-23', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-25', slaPrevisto: 4 },
+  { id: 'VEX_097', coleta: '2022-08-23', cidade: 'Mauá', estado: 'SP', entrega: '2022-08-26', slaPrevisto: 4 },
+  { id: 'VEX_098', coleta: '2022-08-23', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-29', slaPrevisto: 4 },
+  { id: 'VEX_099', coleta: '2022-08-23', cidade: 'Taboão da Serra', estado: 'SP', entrega: '2022-08-25', slaPrevisto: 4 },
+  { id: 'VEX_100', coleta: '2022-08-23', cidade: 'Cuiabá', estado: 'MT', entrega: '2022-08-24', slaPrevisto: 6 },
+  { id: 'VEX_111', coleta: '2022-08-24', cidade: 'Passo Fundo', estado: 'RS', entrega: '2022-08-26', slaPrevisto: 5 },
+  { id: 'VEX_112', coleta: '2022-08-24', cidade: 'Oliveira', estado: 'MG', entrega: '2022-08-25', slaPrevisto: 5 },
+  { id: 'VEX_113', coleta: '2022-08-24', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-25', slaPrevisto: 4 },
+  { id: 'VEX_114', coleta: '2022-08-24', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-25', slaPrevisto: 4 },
+  { id: 'VEX_115', coleta: '2022-08-24', cidade: 'Nova Esperança', estado: 'PR', entrega: '2022-08-29', slaPrevisto: 4 },
+  { id: 'VEX_116', coleta: '2022-08-24', cidade: 'CURITIBA', estado: 'PR', entrega: '2022-08-29', slaPrevisto: 4 },
+  { id: 'VEX_117', coleta: '2022-08-24', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-25', slaPrevisto: 4 },
+  { id: 'VEX_118', coleta: '2022-08-24', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-26', slaPrevisto: 4 },
+  { id: 'VEX_119', coleta: '2022-08-24', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_120', coleta: '2022-08-24', cidade: 'Erechim', estado: 'RS', entrega: '2022-08-29', slaPrevisto: 5 },
+  { id: 'VEX_121', coleta: '2022-08-24', cidade: 'Indaiatuba', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_122', coleta: '2022-08-24', cidade: 'Cotia', estado: 'SP', entrega: '2022-08-26', slaPrevisto: 4 },
+  { id: 'VEX_123', coleta: '2022-08-24', cidade: 'Bauru', estado: 'SP', entrega: '2022-08-26', slaPrevisto: 4 },
+  { id: 'VEX_124', coleta: '2022-08-24', cidade: 'Ribeirão Preto', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_125', coleta: '2022-08-29', cidade: 'Tamarana', estado: 'PR', entrega: '2022-09-01', slaPrevisto: 4 },
+  { id: 'VEX_126', coleta: '2022-08-29', cidade: 'Brasília', estado: 'DF', entrega: '2022-08-26', slaPrevisto: 4 },
+  { id: 'VEX_127', coleta: '2022-08-29', cidade: 'Belo Horizonte', estado: 'MG', entrega: '2022-08-31', slaPrevisto: 5 },
+  { id: 'VEX_128', coleta: '2022-08-29', cidade: 'Curitiba', estado: 'PR', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_129', coleta: '2022-08-29', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-01', slaPrevisto: 4 },
+  { id: 'VEX_130', coleta: '2022-08-29', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-31', slaPrevisto: 4 },
+  { id: 'VEX_131', coleta: '2022-08-29', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_132', coleta: '2022-08-29', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-09', slaPrevisto: 4 },
+  { id: 'VEX_133', coleta: '2022-08-29', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_134', coleta: '2022-08-29', cidade: 'Florianópolis', estado: 'SC', entrega: '2022-08-30', slaPrevisto: 5 },
+  { id: 'VEX_135', coleta: '2022-08-29', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_136', coleta: '2022-08-29', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_137', coleta: '2022-08-29', cidade: 'São José dos Campos', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_138', coleta: '2022-08-29', cidade: 'Luziânia', estado: 'GO', entrega: '2022-09-14', slaPrevisto: 5 },
+  { id: 'VEX_139', coleta: '2022-08-29', cidade: 'CAMPINAS', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_140', coleta: '2022-08-29', cidade: 'Cosmópolis', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_141', coleta: '2022-08-29', cidade: 'São Paulo', estado: 'SP', entrega: '2022-08-30', slaPrevisto: 4 },
+  { id: 'VEX_142', coleta: '2022-08-29', cidade: 'Uberlândia', estado: 'MG', entrega: '2022-09-01', slaPrevisto: 5 },
+  { id: 'VEX_143', coleta: '2022-08-29', cidade: 'Navegantes', estado: 'SC', entrega: '2022-08-30', slaPrevisto: 5 },
+  { id: 'VEX_144', coleta: '2022-08-29', cidade: 'São Bernardo do Campo', estado: 'SP', entrega: '2022-09-01', slaPrevisto: 4 },
+  { id: 'VEX_145', coleta: '2022-08-29', cidade: 'Valinhos', estado: 'SP', entrega: '2022-08-31', slaPrevisto: 4 },
+  { id: 'VEX_146', coleta: '2022-08-29', cidade: 'Fortaleza', estado: 'CE', entrega: '2022-09-01', slaPrevisto: 5 },
+  { id: 'VEX_147', coleta: '2022-08-30', cidade: 'Ribeirão Preto', estado: 'SP', entrega: '2022-08-31', slaPrevisto: 4 },
+  { id: 'VEX_148', coleta: '2022-08-30', cidade: 'São Luís', estado: 'MA', entrega: '2022-09-05', slaPrevisto: 6 },
+  { id: 'VEX_149', coleta: '2022-08-30', cidade: 'Cruzeiro', estado: 'SP', entrega: '2022-09-01', slaPrevisto: 4 },
+  { id: 'VEX_150', coleta: '2022-08-30', cidade: 'Cotia', estado: 'SP', entrega: '2022-08-31', slaPrevisto: 4 },
+  { id: 'VEX_151', coleta: '2022-08-30', cidade: 'Barueri', estado: 'SP', entrega: '2022-09-02', slaPrevisto: 4 },
+  { id: 'VEX_152', coleta: '2022-08-30', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-05', slaPrevisto: 4 },
+  { id: 'VEX_153', coleta: '2022-08-30', cidade: 'Primavera do Leste', estado: 'MT', entrega: '2022-09-01', slaPrevisto: 6 },
+  { id: 'VEX_154', coleta: '2022-08-31', cidade: 'Belo Horizonte', estado: 'MG', entrega: '2022-09-01', slaPrevisto: 5 },
+  { id: 'VEX_155', coleta: '2022-08-31', cidade: 'Cotia', estado: 'SP', entrega: '2022-09-01', slaPrevisto: 4 },
+  { id: 'VEX_156', coleta: '2022-08-31', cidade: 'Brasília', estado: 'DF', entrega: '2022-09-01', slaPrevisto: 4 },
+  { id: 'VEX_157', coleta: '2022-08-31', cidade: 'Montes Claros', estado: 'MG', entrega: '2022-09-12', slaPrevisto: 5 },
+  { id: 'VEX_158', coleta: '2022-08-31', cidade: 'Santana do Araguaia', estado: 'PA', entrega: '2022-09-01', slaPrevisto: 7 },
+  { id: 'VEX_159', coleta: '2022-08-31', cidade: 'Curitiba', estado: 'PR', entrega: '2022-09-01', slaPrevisto: 4 },
+  { id: 'VEX_160', coleta: '2022-09-01', cidade: 'Caxias do Sul', estado: 'RS', entrega: '2022-09-02', slaPrevisto: 5 },
+  { id: 'VEX_161', coleta: '2022-09-01', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-05', slaPrevisto: 4 },
+  { id: 'VEX_162', coleta: '2022-09-01', cidade: 'Montes Claros', estado: 'MG', entrega: '2022-09-13', slaPrevisto: 5 },
+  { id: 'VEX_163', coleta: '2022-09-01', cidade: 'Chapecó', estado: 'SC', entrega: '2022-09-02', slaPrevisto: 5 },
+  { id: 'VEX_164', coleta: '2022-09-01', cidade: 'Belo Horizonte', estado: 'MG', entrega: '2022-09-06', slaPrevisto: 5 },
+  { id: 'VEX_165', coleta: '2022-09-01', cidade: 'São Carlos', estado: 'SP', entrega: '2022-09-02', slaPrevisto: 4 },
+  { id: 'VEX_166', coleta: '2022-09-02', cidade: 'Medianeira', estado: 'PR', entrega: '2022-09-05', slaPrevisto: 4 },
+  { id: 'VEX_167', coleta: '2022-09-02', cidade: 'Indaiatuba', estado: 'SP', entrega: '2022-09-06', slaPrevisto: 4 },
+  { id: 'VEX_168', coleta: '2022-09-02', cidade: 'Rialma', estado: 'GO', entrega: '2022-09-08', slaPrevisto: 5 },
+  { id: 'VEX_169', coleta: '2022-09-02', cidade: 'Curitiba', estado: 'PR', entrega: '2022-09-05', slaPrevisto: 4 },
+  { id: 'VEX_170', coleta: '2022-09-02', cidade: 'Londrina', estado: 'PR', entrega: '2022-09-09', slaPrevisto: 4 },
+  { id: 'VEX_171', coleta: '2022-09-06', cidade: 'Bauru', estado: 'SP', entrega: '2022-09-08', slaPrevisto: 4 },
+  { id: 'VEX_172', coleta: '2022-09-06', cidade: 'Ribeirão Preto', estado: 'SP', entrega: '2022-09-05', slaPrevisto: 4 },
+  { id: 'VEX_173', coleta: '2022-09-06', cidade: 'Betim', estado: 'MG', entrega: '2022-09-13', slaPrevisto: 5 },
+  { id: 'VEX_174', coleta: '2022-09-06', cidade: 'Duque de Caxias', estado: 'RJ', entrega: '2022-09-08', slaPrevisto: 4 },
+  { id: 'VEX_175', coleta: '2022-09-06', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-12', slaPrevisto: 4 },
+  { id: 'VEX_176', coleta: '2022-09-06', cidade: 'Betim', estado: 'MG', entrega: '2022-09-09', slaPrevisto: 5 },
+  { id: 'VEX_177', coleta: '2022-09-06', cidade: 'Osasco', estado: 'SP', entrega: '2022-09-08', slaPrevisto: 4 },
+  { id: 'VEX_178', coleta: '2022-09-05', cidade: 'Rio das Ostras', estado: 'RJ', entrega: '2022-09-08', slaPrevisto: 4 },
+  { id: 'VEX_179', coleta: '2022-09-05', cidade: 'Serra', estado: 'ES', entrega: '2022-09-08', slaPrevisto: 5 },
+  { id: 'VEX_180', coleta: '2022-09-05', cidade: 'Teixeira de Freitas', estado: 'BA', entrega: '2022-09-14', slaPrevisto: 5 },
+  { id: 'VEX_181', coleta: '2022-09-05', cidade: 'Ipatinga', estado: 'MG', entrega: '2022-09-12', slaPrevisto: 5 },
+  { id: 'VEX_182', coleta: '2022-09-05', cidade: 'Itu', estado: 'SP', entrega: '2022-09-08', slaPrevisto: 4 },
+  { id: 'VEX_183', coleta: '2022-09-05', cidade: 'Aracaju', estado: 'SE', entrega: '2022-09-13', slaPrevisto: 6 },
+  { id: 'VEX_184', coleta: '2022-09-06', cidade: 'Cidade de Cianorte', estado: 'PR', entrega: '2022-09-13', slaPrevisto: 4 },
+  { id: 'VEX_185', coleta: '2022-09-06', cidade: 'Fortaleza', estado: 'CE', entrega: '2022-09-12', slaPrevisto: 5 },
+  { id: 'VEX_186', coleta: '2022-09-06', cidade: 'Salvador', estado: 'BA', entrega: '2022-09-13', slaPrevisto: 5 },
+  { id: 'VEX_187', coleta: '2022-09-06', cidade: 'Santa Maria', estado: 'RS', entrega: '2022-09-08', slaPrevisto: 5 },
+  { id: 'VEX_188', coleta: '2022-09-06', cidade: 'Belo Horizonte', estado: 'MG', entrega: '2022-09-13', slaPrevisto: 5 },
+  { id: 'VEX_189', coleta: '2022-09-06', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-12', slaPrevisto: 4 },
+  { id: 'VEX_190', coleta: '2022-09-09', cidade: 'Belo Horizonte', estado: 'MG', entrega: '2022-09-12', slaPrevisto: 5 },
+  { id: 'VEX_191', coleta: '2022-09-09', cidade: 'Santo André', estado: 'SP', entrega: '2022-09-14', slaPrevisto: 4 },
+  { id: 'VEX_192', coleta: '2022-09-09', cidade: 'Caxias do Sul', estado: 'RS', entrega: '2022-09-12', slaPrevisto: 5 },
+  { id: 'VEX_193', coleta: '2022-09-09', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-12', slaPrevisto: 4 },
+  { id: 'VEX_194', coleta: '2022-09-09', cidade: 'Porto Alegre', estado: 'RS', entrega: '2022-09-12', slaPrevisto: 5 },
+  { id: 'VEX_195', coleta: '2022-09-09', cidade: 'Goiânia', estado: 'GO', entrega: '2022-09-12', slaPrevisto: 5 },
+  { id: 'VEX_196', coleta: '2022-09-09', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-14', slaPrevisto: 4 },
+  { id: 'VEX_197', coleta: '2022-09-09', cidade: 'Lucas do Rio Verde', estado: 'MT', entrega: '2022-09-14', slaPrevisto: 6 },
+  { id: 'VEX_198', coleta: '2022-09-09', cidade: 'São José', estado: 'SC', entrega: '2022-09-16', slaPrevisto: 5 },
+  { id: 'VEX_199', coleta: '2022-09-09', cidade: 'Gurupi', estado: 'TO', entrega: '2022-09-15', slaPrevisto: 6 },
+  { id: 'VEX_200', coleta: '2022-09-09', cidade: 'São Luís', estado: 'MA', entrega: '2022-09-22', slaPrevisto: 6 },
+  { id: 'VEX_201', coleta: '2022-09-09', cidade: 'Rio de Janeiro', estado: 'RJ', entrega: '2022-09-19', slaPrevisto: 4 },
+  { id: 'VEX_202', coleta: '2022-09-09', cidade: 'Campinas', estado: 'SP', entrega: '2022-09-15', slaPrevisto: 4 },
+  { id: 'VEX_203', coleta: '2022-09-09', cidade: 'Gravataí', estado: 'RS', entrega: '2022-09-15', slaPrevisto: 5 },
+  { id: 'VEX_204', coleta: '2022-09-09', cidade: 'Dourados', estado: 'MS', entrega: '2022-09-13', slaPrevisto: 6 },
+  { id: 'VEX_205', coleta: '2022-09-09', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-12', slaPrevisto: 4 },
+  { id: 'VEX_206', coleta: '2022-09-09', cidade: 'Porto Alegre', estado: 'RS', entrega: '2022-09-13', slaPrevisto: 5 },
+  { id: 'VEX_207', coleta: '2022-09-14', cidade: 'Uberlândia', estado: 'MG', entrega: '2022-09-12', slaPrevisto: 5 },
+  { id: 'VEX_208', coleta: '2022-09-14', cidade: 'São Paulo', estado: 'SP', entrega: 'Extraviado', slaPrevisto: 4 },
+  { id: 'VEX_209', coleta: '2022-09-14', cidade: 'São Luís', estado: 'MA', entrega: '2022-09-19', slaPrevisto: 6 },
+  { id: 'VEX_210', coleta: '2022-09-14', cidade: 'Goiânia', estado: 'GO', entrega: '2022-09-19', slaPrevisto: 5 },
+  { id: 'VEX_211', coleta: '2022-09-14', cidade: 'Fazenda Rio Grande', estado: 'PR', entrega: '2022-09-16', slaPrevisto: 4 },
+  { id: 'VEX_212', coleta: '2022-09-14', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-15', slaPrevisto: 4 },
+  { id: 'VEX_213', coleta: '2022-09-14', cidade: 'Araquari', estado: 'SC', entrega: '2022-09-16', slaPrevisto: 5 },
+  { id: 'VEX_214', coleta: '2022-09-14', cidade: 'Contagem', estado: 'MG', entrega: '2022-09-16', slaPrevisto: 5 },
+  { id: 'VEX_215', coleta: '2022-09-14', cidade: 'Jundiaí', estado: 'SP', entrega: '2022-09-19', slaPrevisto: 4 },
+  { id: 'VEX_216', coleta: '2022-09-14', cidade: 'Cuiabá', estado: 'MT', entrega: '2022-09-15', slaPrevisto: 6 },
+  { id: 'VEX_217', coleta: '2022-09-14', cidade: 'Campinas', estado: 'SP', entrega: '2022-09-16', slaPrevisto: 4 },
+  { id: 'VEX_218', coleta: '2022-09-14', cidade: 'Brasília', estado: 'DF', entrega: '2022-09-15', slaPrevisto: 4 },
+  { id: 'VEX_219', coleta: '2022-09-14', cidade: 'Cajamar', estado: 'SP', entrega: '2022-09-19', slaPrevisto: 4 },
+  { id: 'VEX_220', coleta: '2022-09-15', cidade: 'Cosmópolis', estado: 'SP', entrega: '2022-09-16', slaPrevisto: 4 },
+  { id: 'VEX_221', coleta: '2022-09-15', cidade: 'Botucatu', estado: 'SP', entrega: '2022-09-19', slaPrevisto: 4 },
+  { id: 'VEX_222', coleta: '2022-09-15', cidade: 'Curitiba', estado: 'PR', entrega: '2022-09-16', slaPrevisto: 4 },
+  { id: 'VEX_223', coleta: '2022-09-15', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-19', slaPrevisto: 4 },
+  { id: 'VEX_224', coleta: '2022-09-15', cidade: 'Toledo', estado: 'PR', entrega: '2022-09-19', slaPrevisto: 4 },
+  { id: 'VEX_225', coleta: '2022-09-15', cidade: 'Pouso Alegre', estado: 'MG', entrega: '2022-09-20', slaPrevisto: 5 },
+  { id: 'VEX_226', coleta: '2022-09-16', cidade: 'Cascavel', estado: 'PR', entrega: '2022-09-20', slaPrevisto: 4 },
+  { id: 'VEX_227', coleta: '2022-09-16', cidade: 'Jundiaí', estado: 'SP', entrega: '2022-09-19', slaPrevisto: 4 },
+  { id: 'VEX_228', coleta: '2022-09-16', cidade: 'Campinas', estado: 'SP', entrega: '2022-09-20', slaPrevisto: 4 },
+  { id: 'VEX_229', coleta: '2022-09-16', cidade: 'Jaboatão dos Guararapes', estado: 'PE', entrega: '2022-09-19', slaPrevisto: 6 },
+  { id: 'VEX_230', coleta: '2022-09-16', cidade: 'Sinop', estado: 'MT', entrega: '2022-09-20', slaPrevisto: 6 },
+  { id: 'VEX_231', coleta: '2022-09-19', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-21', slaPrevisto: 4 },
+  { id: 'VEX_232', coleta: '2022-09-19', cidade: 'Americana', estado: 'SP', entrega: '2022-09-21', slaPrevisto: 4 },
+  { id: 'VEX_233', coleta: '2022-09-19', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-20', slaPrevisto: 4 },
+  { id: 'VEX_234', coleta: '2022-09-20', cidade: 'Ribeirão Preto', estado: 'SP', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_235', coleta: '2022-09-20', cidade: 'Ribeirão Preto', estado: 'SP', entrega: '2022-09-22', slaPrevisto: 4 },
+  { id: 'VEX_236', coleta: '2022-09-20', cidade: 'Leme', estado: 'SP', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_237', coleta: '2022-09-20', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_238', coleta: '2022-09-21', cidade: 'Londrina', estado: 'PR', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_239', coleta: '2022-09-21', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_240', coleta: '2022-09-21', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-22', slaPrevisto: 4 },
+  { id: 'VEX_241', coleta: '2022-09-21', cidade: 'Cambé', estado: 'PR', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_242', coleta: '2022-09-21', cidade: 'Ribeirão Preto', estado: 'SP', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_243', coleta: '2022-09-22', cidade: 'Salvador', estado: 'BA', entrega: '2022-09-26', slaPrevisto: 5 },
+  { id: 'VEX_244', coleta: '2022-09-22', cidade: 'Guarulhos', estado: 'SP', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_245', coleta: '2022-09-22', cidade: 'Jacareí', estado: 'SP', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_246', coleta: '2022-09-22', cidade: 'Palhoça', estado: 'SC', entrega: '2022-09-28', slaPrevisto: 5 },
+  { id: 'VEX_247', coleta: '2022-09-22', cidade: 'Botucatu', estado: 'SP', entrega: '2022-10-20', slaPrevisto: 4 },
+  { id: 'VEX_248', coleta: '2022-09-22', cidade: 'Pedreiras', estado: 'MA', entrega: '2022-09-23', slaPrevisto: 6 },
+  { id: 'VEX_249', coleta: '2022-09-22', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_250', coleta: '2022-09-22', cidade: 'Duque de Caxias', estado: 'RJ', entrega: '2022-09-23', slaPrevisto: 4 },
+  { id: 'VEX_251', coleta: '2022-09-22', cidade: 'Hortolândia', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_252', coleta: '2022-09-22', cidade: 'Brasília', estado: 'DF', entrega: '2022-10-06', slaPrevisto: 4 },
+  { id: 'VEX_253', coleta: '2022-09-22', cidade: 'Campina Grande', estado: 'PB', entrega: '2022-09-27', slaPrevisto: 7 },
+  { id: 'VEX_254', coleta: '2022-09-22', cidade: 'Campinas', estado: 'SP', entrega: '2022-10-04', slaPrevisto: 4 },
+  { id: 'VEX_255', coleta: '2022-09-22', cidade: 'Rio Grande', estado: 'RS', entrega: '2022-09-26', slaPrevisto: 5 },
+  { id: 'VEX_256', coleta: '2022-09-22', cidade: 'Fortaleza', estado: 'CE', entrega: '2022-09-26', slaPrevisto: 5 },
+  { id: 'VEX_257', coleta: '2022-09-22', cidade: 'Descalvado', estado: 'SP', entrega: '2022-09-28', slaPrevisto: 4 },
+  { id: 'VEX_258', coleta: '2022-09-22', cidade: 'Santa Luzia', estado: 'MG', entrega: '2022-09-26', slaPrevisto: 5 },
+  { id: 'VEX_259', coleta: '2022-09-22', cidade: 'Poços de Caldas', estado: 'MG', entrega: '2022-09-28', slaPrevisto: 5 },
+  { id: 'VEX_260', coleta: '2022-09-22', cidade: 'Uberlândia', estado: 'MG', entrega: '2022-09-26', slaPrevisto: 5 },
+  { id: 'VEX_261', coleta: '2022-09-22', cidade: 'Palhoça', estado: 'SC', entrega: '2022-09-27', slaPrevisto: 5 },
+  { id: 'VEX_262', coleta: '2022-09-22', cidade: 'São Luís', estado: 'MA', entrega: '2022-09-27', slaPrevisto: 6 },
+  { id: 'VEX_263', coleta: '2022-09-22', cidade: 'Salvador', estado: 'BA', entrega: '2022-10-25', slaPrevisto: 5 },
+  { id: 'VEX_264', coleta: '2022-09-23', cidade: 'Itabira', estado: 'MG', entrega: '2022-10-25', slaPrevisto: 5 },
+  { id: 'VEX_265', coleta: '2022-09-23', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_266', coleta: '2022-09-23', cidade: 'Curitiba', estado: 'PR', entrega: '2022-09-26', slaPrevisto: 4 },
+  { id: 'VEX_267', coleta: '2022-09-23', cidade: 'Americana', estado: 'SP', entrega: '2022-09-26', slaPrevisto: 4 },
+  { id: 'VEX_268', coleta: '2022-09-23', cidade: 'Pitanga', estado: 'PR', entrega: '2022-09-26', slaPrevisto: 4 },
+  { id: 'VEX_269', coleta: '2022-09-23', cidade: 'Itupeva', estado: 'SP', entrega: '2022-09-28', slaPrevisto: 4 },
+  { id: 'VEX_270', coleta: '2022-09-23', cidade: 'Passo Fundo', estado: 'RS', entrega: '2022-09-28', slaPrevisto: 5 },
+  { id: 'VEX_271', coleta: '2022-09-23', cidade: 'Nova Lima', estado: 'MG', entrega: '2022-09-28', slaPrevisto: 5 },
+  { id: 'VEX_272', coleta: '2022-09-23', cidade: 'Barueri', estado: 'SP', entrega: '2022-09-26', slaPrevisto: 4 },
+  { id: 'VEX_273', coleta: '2022-09-23', cidade: 'Três Rios', estado: 'RJ', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_274', coleta: '2022-09-23', cidade: 'Salvador', estado: 'BA', entrega: '2022-09-27', slaPrevisto: 5 },
+  { id: 'VEX_275', coleta: '2022-09-23', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-28', slaPrevisto: 4 },
+  { id: 'VEX_276', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-28', slaPrevisto: 4 },
+  { id: 'VEX_277', coleta: '2022-09-26', cidade: 'Curitiba', estado: 'PR', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_278', coleta: '2022-09-26', cidade: 'Ribeirão Preto', estado: 'SP', entrega: '2022-09-28', slaPrevisto: 4 },
+  { id: 'VEX_279', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_280', coleta: '2022-09-26', cidade: 'Florianópolis', estado: 'SC', entrega: '2022-09-28', slaPrevisto: 5 },
+  { id: 'VEX_281', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_282', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_283', coleta: '2022-09-26', cidade: 'Sobral', estado: 'CE', entrega: '2022-09-30', slaPrevisto: 5 },
+  { id: 'VEX_284', coleta: '2022-09-26', cidade: 'Araçoiaba da Serra', estado: 'SP', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_285', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_286', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_287', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_288', coleta: '2022-09-26', cidade: 'Ribeirão Preto', estado: 'SP', entrega: '2022-10-13', slaPrevisto: 4 },
+  { id: 'VEX_289', coleta: '2022-09-26', cidade: 'Atibaia', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_290', coleta: '2022-09-26', cidade: 'Teresina', estado: 'PI', entrega: '2022-09-29', slaPrevisto: 7 },
+  { id: 'VEX_291', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-10-14', slaPrevisto: 4 },
+  { id: 'VEX_292', coleta: '2022-09-26', cidade: 'Natal', estado: 'RN', entrega: '2022-09-29', slaPrevisto: 6 },
+  { id: 'VEX_293', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-10-14', slaPrevisto: 4 },
+  { id: 'VEX_294', coleta: '2022-09-26', cidade: 'Sabará', estado: 'MG', entrega: '2022-09-29', slaPrevisto: 5 },
+  { id: 'VEX_295', coleta: '2022-09-26', cidade: 'São José dos Campos', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_296', coleta: '2022-09-26', cidade: 'Rio de Janeiro', estado: 'RJ', entrega: '2022-09-28', slaPrevisto: 4 },
+  { id: 'VEX_297', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_298', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_299', coleta: '2022-09-26', cidade: 'Osasco', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_300', coleta: '2022-09-26', cidade: 'Osasco', estado: 'SP', entrega: '2022-09-27', slaPrevisto: 4 },
+  { id: 'VEX_301', coleta: '2022-09-26', cidade: 'João Pessoa', estado: 'PB', entrega: '2022-09-27', slaPrevisto: 7 },
+  { id: 'VEX_302', coleta: '2022-09-26', cidade: 'Caruaru', estado: 'PE', entrega: '2022-09-28', slaPrevisto: 6 },
+  { id: 'VEX_303', coleta: '2022-09-26', cidade: 'São Paulo', estado: 'SP', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_304', coleta: '2022-09-26', cidade: 'Araxá', estado: 'MG', entrega: '2022-09-29', slaPrevisto: 5 },
+  { id: 'VEX_305', coleta: '2022-09-26', cidade: 'Rio de Janeiro', estado: 'RJ', entrega: '2022-09-30', slaPrevisto: 4 },
+  { id: 'VEX_306', coleta: '2022-09-26', cidade: 'Ipatinga', estado: 'MG', entrega: '2022-09-29', slaPrevisto: 5 },
+  { id: 'VEX_307', coleta: '2022-09-27', cidade: 'São José do Rio Preto', estado: 'SP', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_308', coleta: '2022-09-27', cidade: 'Americana', estado: 'SP', entrega: '2022-09-29', slaPrevisto: 4 },
+  { id: 'VEX_309', coleta: '2022-09-27', cidade: 'Itaboraí', estado: 'RJ', entrega: '2022-09-30', slaPrevisto: 4 },
+  { id: 'VEX_310', coleta:'2022-09-27', cidade:'Maceió', estado:'AL', entrega:'2022-09-30', slaPrevisto: 6 },
+  { id:"VEX_311", coleta:"2022-09-27", cidade:"São Paulo",estado:"SP",entrega:"2022-09-28",slaPrevisto: 4},
+  { id:"VEX_312",coleta:"2022-09-27",cidade:"Belo Horizonte",estado:"MG",entrega:"2022-09-30",slaPrevisto:5},
+  { id:"VEX_313",coleta:"2022-09-27",cidade:"Bauru",estado:"SP",entrega:"2022-09-29",slaPrevisto:4 },
+  { id:"VEX_314",coleta:"2022-09-27",cidade:"São Pedro",estado:"SP",entrega:"2022-09-29",slaPrevisto:4},
+  { id:"VEX_315",coleta:"2022-09-27",cidade:"São Paulo",estado:"SP",entrega:"2022-09-30",slaPrevisto:4},
+  { id:"VEX_316",coleta:"2022-09-27",cidade:"São Paulo",estado:"SP",entrega:"2022-09-28",slaPrevisto: 4},
+  { id:"VEX_317",coleta:"2022-09-28",cidade:"Cuiabá",estado:"MT",entrega:"2022-09-29",slaPrevisto: 6},
+  { id:"VEX_318",coleta:"2022-09-28",cidade:"São Paulo",estado:"SP",entrega:"2022-09-30",slaPrevisto:4},
+  { id:"VEX_319",coleta:"2022-09-28",cidade:"Betim",estado:"MG",entrega:"2022-09-30",slaPrevisto:5},
+  { id:"VEX_320",coleta:"2022-09-28",cidade:"União da Vitória",estado:"PR",entrega:"2022-09-30",slaPrevisto:4},
+  { id:"VEX_321",coleta:"2022-09-28",cidade:"João Pessoa",estado:"PB",entrega:"2022-09-30",slaPrevisto:7},
+  { id:"VEX_322",coleta:"2022-09-28",cidade:"São José dos Campos",estado:"SP",entrega:"2022-09-29",slaPrevisto:4},
+  { id:"VEX_323",coleta:"2022-09-28",cidade:"Natal",estado:"RN",entrega:"2022-09-30",slaPrevisto:6},
+  { id:"VEX_324",coleta:"2022-09-29",cidade:"Lauro de Freitas",estado:"BA",entrega:"2022-10-03",slaPrevisto:5},
+  { id:"VEX_325",coleta:"2022-09-29",cidade:"Campinas",estado:"SP",entrega:"2022-10-04",slaPrevisto:4},
+  { id:"VEX_326",coleta:"2022-09-29",cidade:"Tapurah",estado:"MT",entrega:"2022-09-30",slaPrevisto:6},
+  { id:"VEX_327",coleta:"2022-09-29",cidade:"Aracaju",estado:"SE",entrega:"2022-09-30",slaPrevisto:6},
+  {id:"VEX_328",coleta:"2022-09-29",cidade:"Cuiabá",estado:"MT",entrega:"2022-10-03",slaPrevisto:6},
+  {id:"VEX_329",coleta:"2022-09-29",cidade:"Santos",estado:"SP",entrega:"2022-10-05",slaPrevisto:4},
+  {id:"VEX_330",coleta:"2022-09-29",cidade:"Trindade",estado:"GO",entrega:"2022-10-07",slaPrevisto:5},
+  {id:"VEX_331",coleta:"2022-09-29",cidade:"Pindamonhangaba",estado:"SP",entrega:"2022-10-03",slaPrevisto:4},
+  {id:"VEX_332",coleta:"2022-09-29",cidade:"São Paulo",estado:"SP",entrega:"2022-10-03",slaPrevisto:4},
+  {id:"VEX_333",coleta:"2022-09-29",cidade:"Sabáudia",estado:"PR",entrega:"2022-09-30",slaPrevisto:4},
+  {id:"VEX_334",coleta:"2022-09-29",cidade:"Natal",estado:"RN",entrega:"2022-10-03",slaPrevisto:6},
+            // Adicione mais dados conforme necessário
+        ];
+
+        const calculateDays = (start, end) => {
+            if (!end || end === 'Extraviado') return null; // Retorna null se a data de entrega estiver ausente ou se o cartão foi extraviado
+            const startDate = new Date(start);
+            const endDate = new Date(end);
+            return (endDate - startDate) / (1000 * 60 * 60 * 24);
+        };
+
+        const updateTable = (filteredData) => {
+            const tbody = document.getElementById('data-body');
+            tbody.innerHTML = '';
+            let totalDays = 0;
+            let count = 0; // Contador de entradas válidas para o cálculo da média
+
+            filteredData.forEach(item => {
+                const tempoEnvio = calculateDays(item.coleta, item.entrega);
+                const diff = tempoEnvio - item.slaPrevisto;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${item.id}</td>
+                        <td>${item.coleta}</td>
+                        <td>${item.cidade}</td>
+                        <td>${item.estado}</td>
+                        <td>${item.entrega ? item.entrega : 'Cartão Extraviado'}</td>
+                        <td>${tempoEnvio !== null ? tempoEnvio : 'N/A'}</td>
+                        <td>${item.slaPrevisto}</td>
+                        <td>${tempoEnvio !== null ? diff : 'N/A'}</td>
+                    </tr>
+                `;
+
+                if (tempoEnvio !== null) {
+                    totalDays += tempoEnvio;
+                    count++; // Incrementa o contador apenas para entradas válidas
+                }
+            });
+
+            const avgTime = totalDays / count;
+            document.getElementById('avg-time').innerText = avgTime ? avgTime.toFixed(2) : 'N/A';
+        };
+
+        const filterData = (criteria) => {
+            let filteredData;
+
+            if (criteria === 'greater') {
+                filteredData = data.filter(item => {
+                    const tempoEnvio = calculateDays(item.coleta, item.entrega);
+                    return tempoEnvio !== null && tempoEnvio > item.slaPrevisto;
+                });
+            } else if (criteria === 'less') {
+                filteredData = data.filter(item => {
+                    const tempoEnvio = calculateDays(item.coleta, item.entrega);
+                    return tempoEnvio !== null && tempoEnvio < item.slaPrevisto;
+                });
+            } else if (criteria === 'equal') {
+                filteredData = data.filter(item => {
+                    const tempoEnvio = calculateDays(item.coleta, item.entrega);
+                    return tempoEnvio !== null && tempoEnvio === item.slaPrevisto;
+                });
+            } else if (criteria === 'extraviado') {
+                filteredData = data.filter(item => item.entrega === 'Extraviado');
+            } else {
+                filteredData = data;
+            }
+
+            updateTable(filteredData);
+        };
+
+        const populateStateSelect = () => {
+            const stateSelect = document.getElementById('state');
+            const states = [...new Set(data.map(item => item.estado))];
+            states.forEach(state => {
+                const option = document.createElement('option');
+                option.value = state;
+                option.textContent = state;
+                stateSelect.appendChild(option);
+            });
+        };
+
+        const calculateAverageByState = () => {
+            const state = document.getElementById('state').value;
+            if (state) {
+                const stateData = data.filter(item => item.estado === state && item.entrega !== 'Extraviado');
+                const totalDays = stateData.reduce((total, item) => {
+                    const tempoEnvio = calculateDays(item.coleta, item.entrega);
+                    return tempoEnvio !== null ? total + tempoEnvio : total;
+                }, 0);
+                const count = stateData.filter(item => calculateDays(item.coleta, item.entrega) !== null).length;
+                const avgTime = totalDays / count;
+                document.getElementById('average-time-state').innerText = `Média de Tempo de Envio para ${state}: ${avgTime ? avgTime.toFixed(2) : 'N/A'} dias`;
+            } else {
+                document.getElementById('average-time-state').innerText = '';
+            }
+        };
+
+        const downloadExcel = () => {
+            const workbook = XLSX.utils.book_new();
+            const worksheetData = [
+                ["ID do Pedido", "Data de Coleta", "Cidade", "Estado", "Data de Entrega", "Tempo de Envio (dias)", "SLA Previsto (dias)", "Diferença (dias)"],
+            ];
+
+            data.forEach(item => {
+                const tempoEnvio = calculateDays(item.coleta, item.entrega);
+                const diff = tempoEnvio - item.slaPrevisto;
+                worksheetData.push([item.id, item.coleta, item.cidade, item.estado, item.entrega, tempoEnvio, item.slaPrevisto, diff]);
+            });
+
+            const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Relatório");
+            XLSX.writeFile(workbook, "relatorio_vexpenses.xlsx");
+        };
+
+        // Inicializa a tabela com todos os dados
+        updateTable(data);
+        populateStateSelect();
+    </script>
+</body>
+</html>
